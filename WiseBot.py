@@ -5,6 +5,7 @@ from time import time
 from datetime import *
 from dotenv import load_dotenv
 import os
+from gtts import gTTS
 
 load_dotenv()
 
@@ -41,9 +42,15 @@ def crypto_pic(message):
     inline_markup = InlineKeyboardMarkup()
     btn1 = InlineKeyboardButton('TOP 20 COIN', callback_data='top20')
     btn2 = InlineKeyboardButton('سرچ ارز دلخواه', callback_data='custom')
-    inline_markup.add(btn1, btn2)
+    btn3 = InlineKeyboardButton('BACK', callback_data='back_start')
+    inline_markup.add(btn1, btn2, btn3)
     
     bot.send_message(message.chat.id, 'یکی از گزینه های زیر رو انتخاب کن', reply_markup=inline_markup)
+    
+@bot.callback_query_handler(func=lambda call: call.data == 'back_start')
+def back_start(call):
+    bot.clear_step_handler(call.message)
+    start(call.message)
     
 @bot.callback_query_handler(func=lambda m: m.data == 'top20')
 def top20_coin(call):
@@ -101,6 +108,7 @@ def custom_search(message):
     }
 
     text = message.text
+    coin_list = []
     response = requests.get(url=coin_url, headers=headers, params=params)
     if response.status_code == 200:
         data = response.json()
@@ -110,8 +118,10 @@ def custom_search(message):
             coin_symbol = coin['symbol']
             if text.upper() == coin_symbol.upper() or text.lower() == coin_name.lower():
                 price = coin['quote']['USD']['price']
-                bot.send_message(message.chat.id, f'{coin_name} ({coin_symbol}) price: ${price:.7f}', reply_markup=inline_markup)        
+                coin_list.append(f'{coin_name} ({coin_symbol}) price: ${price:.7f}')      
                 found = True
+        message_text = "\n".join(coin_list)
+        bot.send_message(message.chat.id, text=message_text, reply_markup=inline_markup)  
         if not found:
             bot.send_message(message.chat.id, 'ارز مورد نظر پیدا نشد لطفا دوباره تست کنید', reply_markup=inline_markup) 
     else:
@@ -120,6 +130,7 @@ def custom_search(message):
     
 @bot.callback_query_handler(func=lambda m: m.data == 'back_mu2')
 def back_menu2(call):
+    bot.clear_step_handler(call.message)
     crypto_pic(call.message)
     
 # part openweather
@@ -194,10 +205,33 @@ def enter_name_city(message):
 
     bot.register_next_step_handler(message, enter_name_city)
 
-    
-@bot.message_handler(func=lambda m: m.data == 'back_mu3')
+@bot.callback_query_handler(func=lambda m: m.data == 'back_mu3')
 def back_first_mune(call):
+    bot.clear_step_handler(call.message)
     start(call.message)
+    
+# tts part
+
+@bot.message_handler(func=lambda m: m.text == 'تبدیل متن به ویس')
+def tts_part(message):
+    bot.send_message(message.chat.id, 'خب حالا متن دلخواه خودتان رو ارسال کنید تا ویسش رو به شکا بفرستم')
+    bot.register_next_step_handler(message, tts_send_voice)
+    
+def tts_send_voice(message):
+
+    inline_markup = InlineKeyboardMarkup()
+    btn = InlineKeyboardButton('BACK', callback_data='back_start')
+    inline_markup.add(btn)
+    
+    text = message.text
+    tts = gTTS(text=text, lang='ur')
+    file_path = 'speech.mp3'
+    tts.save(file_path)
+    with open(file_path, 'rb') as voice:
+        bot.send_voice(message.chat.id, voice)
+    os.remove(file_path)
+    bot.send_message(message.chat.id, 'برای ساخت ویس میتونید باز متن بفرستید برای برگشت دکمه BACK رو بزنید', reply_markup=inline_markup)
+    bot.register_next_step_handler(message, tts_send_voice)
 
 print('bot is running...')
 bot.polling(none_stop=True)
